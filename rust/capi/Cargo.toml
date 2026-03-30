@@ -1,0 +1,13 @@
+[package]
+name = "ldac-dec-capi"
+version = "0.1.0"
+edition = "2021"
+description = "C-ABI drop-in replacement for libldacBT_dec.so"
+license = "Apache-2.0"
+
+[lib]
+name = "ldacBT_dec"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+ldac-dec = { path = ".." }
