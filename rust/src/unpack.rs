@@ -170,7 +170,11 @@ pub fn unpack_raw_data_frame(sf: &mut SfInfo, stream: &[u8]) -> LdacResult<usize
                 unpack_scale_factor_0(ac, nqus, &mut br);
             }
 
-            if ac.a_idsf.iter().any(|&v| v > 31) {
+            // Reject out-of-range (including negative) scale factors so
+            // they never reach the GA_SF[idx] lookup in dequant.  The C
+            // check `v > 31` is signed and lets negatives through
+            // (SECURITY_REPORT.md Finding #3).
+            if ac.a_idsf.iter().any(|&v| !(0..=31).contains(&v)) {
                 return Err(LdacError::SyntaxIdsf);
             }
 
