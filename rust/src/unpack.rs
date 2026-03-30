@@ -52,6 +52,10 @@ fn unpack_scale_factor_0(ac: &mut Ac, nqus: usize, br: &mut BitReader) {
 }
 
 fn sign_extend(v: u32, bits: u32) -> i32 {
+    // All call sites derive `bits` from GA_WL[idwl] where idwl has been
+    // clamped to >= 1 by reconst_word_length, so bits is in 2..=16.  The
+    // shift below would be UB for bits == 0 or > 32; guard explicitly.
+    debug_assert!((1..=32).contains(&bits));
     let shift = 32 - bits;
     ((v << shift) as i32) >> shift
 }
@@ -80,6 +84,11 @@ pub fn unpack_raw_data_frame(sf: &mut SfInfo, stream: &[u8]) -> LdacResult<usize
                 for ich in 0..ab.blk_nchs {
                     let ac = &mut acs[ab.ac_idx[ich]];
                     ac.ext_size = br.read(7) as i32;
+                    // FAITHFUL C BUG: the reference reads 16-bit chunks
+                    // until the remaining count goes non-positive, so a
+                    // 7-bit ext_size consumes 16 bits and 17 consumes 32.
+                    // Do NOT "fix" this to read exactly `ext_size` bits
+                    // or the bitstream will desync from real encoders.
                     let mut ext = ac.ext_size;
                     while ext > 0 {
                         br.read(16);
