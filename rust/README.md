@@ -108,8 +108,13 @@ Test suites:
 * `capi/tests/abi_compat.rs` — dlopens *both* the C reference and the
   Rust-built `libldacBT_dec.so`, drives them through identical C-ABI
   calls, and asserts bit-identical PCM plus matching bitrate/version.
+* `capi/tests/valgrind.rs` — runs a C harness (built via the `cc`
+  crate) under valgrind against the Rust cdylib, exercising full
+  decode loops, repeated re-init, close/reopen and error paths.
+  Asserts `ERROR SUMMARY: 0 errors` and zero leaks.
 
-The diff tests skip gracefully when the C library is not built.
+The diff and valgrind tests skip gracefully when their prerequisites
+(C reference library / valgrind) are not available.
 To enable them:
 
 ```bash

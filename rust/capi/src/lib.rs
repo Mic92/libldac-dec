@@ -278,3 +278,119 @@ pub unsafe extern "C" fn ldacBT_decode(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ptr;
+
+    #[test]
+    fn null_handle_is_harmless() {
+        unsafe {
+            ldacBT_free_handle(ptr::null_mut());
+            ldacBT_close_handle(ptr::null_mut());
+            assert_eq!(ldacBT_get_sampling_freq(ptr::null_mut()), -1);
+            assert_eq!(ldacBT_get_bitrate(ptr::null_mut()), -1);
+            assert_eq!(
+                ldacBT_init_handle_decode(ptr::null_mut(), 1, 48000, 0, 0, 0),
+                -1
+            );
+            // C API returns FATAL_HANDLE<<10 on null.
+            assert_eq!(
+                ldacBT_get_error_code(ptr::null_mut()),
+                LDACBT_ERR_FATAL_HANDLE << 10
+            );
+        }
+    }
+
+    #[test]
+    fn handle_lifecycle_no_leak() {
+        // Miri tracks this Box allocation and would flag a leak if
+        // free_handle forgot to drop it.
+        let h = ldacBT_get_handle();
+        assert!(!h.is_null());
+        unsafe {
+            assert_eq!(
+                ldacBT_init_handle_decode(h, LDACBT_CHANNEL_MODE_STEREO, 48_000, 0, 0, 0),
+                0
+            );
+            assert_eq!(ldacBT_get_sampling_freq(h), 48_000);
+            assert_eq!(ldacBT_get_error_code(h), LDACBT_ERR_NONE);
+            ldacBT_free_handle(h);
+        }
+    }
+
+    #[test]
+    fn close_then_reinit() {
+        let h = ldacBT_get_handle();
+        unsafe {
+            ldacBT_init_handle_decode(h, LDACBT_CHANNEL_MODE_MONO, 44_100, 0, 0, 0);
+            ldacBT_close_handle(h);
+            // After close the decoder is gone; queries report not-init.
+            assert_eq!(ldacBT_get_sampling_freq(h), -1);
+            // Re-init on the same handle must work.
+            assert_eq!(
+                ldacBT_init_handle_decode(h, LDACBT_CHANNEL_MODE_STEREO, 96_000, 0, 0, 0),
+                0
+            );
+            assert_eq!(ldacBT_get_sampling_freq(h), 96_000);
+            ldacBT_free_handle(h);
+        }
+    }
+
+    #[test]
+    fn decode_garbage_is_safe() {
+        let h = ldacBT_get_handle();
+        unsafe {
+            ldacBT_init_handle_decode(h, LDACBT_CHANNEL_MODE_STEREO, 48_000, 0, 0, 0);
+            let bs = [0u8; 32]; // no syncword
+            let mut pcm = [0u8; 256 * 2 * 4];
+            let (mut used, mut wrote) = (0, 0);
+            let r = ldacBT_decode(
+                h,
+                bs.as_ptr(),
+                pcm.as_mut_ptr(),
+                LDACBT_SMPL_FMT_S16,
+                bs.len() as c_int,
+                &mut used,
+                &mut wrote,
+            );
+            assert_eq!(r, -1);
+            assert_eq!(used, 0);
+            assert_eq!(wrote, 0);
+            assert_ne!(ldacBT_get_error_code(h), LDACBT_ERR_NONE);
+            ldacBT_free_handle(h);
+        }
+    }
+
+    #[test]
+    fn bad_init_params_rejected() {
+        let h = ldacBT_get_handle();
+        unsafe {
+            // Invalid channel mode.
+            assert_eq!(ldacBT_init_handle_decode(h, 0x99, 48_000, 0, 0, 0), -1);
+            // Invalid sample rate.
+            assert_eq!(
+                ldacBT_init_handle_decode(h, LDACBT_CHANNEL_MODE_STEREO, 12_345, 0, 0, 0),
+                -1
+            );
+            ldacBT_free_handle(h);
+        }
+    }
+
+    #[test]
+    fn repeated_init_no_leak() {
+        // Each init replaces the Option<LdacDecoder>; Miri would flag
+        // if the old Box<AcSub> inside weren't dropped.
+        let h = ldacBT_get_handle();
+        unsafe {
+            for _ in 0..10 {
+                assert_eq!(
+                    ldacBT_init_handle_decode(h, LDACBT_CHANNEL_MODE_STEREO, 48_000, 0, 0, 0),
+                    0
+                );
+            }
+            ldacBT_free_handle(h);
+        }
+    }
+}

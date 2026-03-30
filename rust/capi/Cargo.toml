@@ -11,3 +11,6 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 ldac-dec = { path = ".." }
+
+[build-dependencies]
+cc = "1"
