@@ -57,22 +57,28 @@ fn diff_against_c_fmt(rfmt: SampleFormat, cfmt: c_int, wl: usize) {
         eprintln!("fixture: {}", fx.display());
         let stream = std::fs::read(&fx).unwrap();
 
-        // Derive sample rate from the first frame header.
+        // Derive sample rate + channel mode from the first frame header.
         let sr_id = (stream[1] >> 5) & 7;
+        let cc_id = (stream[1] >> 3) & 3;
         let sr = [44_100, 48_000, 88_200, 96_000][sr_id as usize];
+        let (ccm, rcm, nch) = match cc_id {
+            0 => (0x04, ChannelMode::Mono, 1),
+            1 => (0x02, ChannelMode::DualChannel, 2),
+            _ => (0x01, ChannelMode::Stereo, 2),
+        };
 
         // C side.  The reference ldacBT_init_handle_decode calls
         // set_config_info with unset fields (a benign bug); the per-frame
         // decode re-reads config from the header, so ignore the return code.
         let h = cdec.get_handle();
-        let _ = cdec.init(h, 1 /* STEREO */, sr as c_int);
+        let _ = cdec.init(h, ccm, sr as c_int);
 
         // Rust side
-        let mut rdec = LdacDecoder::new(ChannelMode::Stereo, sr).unwrap();
+        let mut rdec = LdacDecoder::new(rcm, sr).unwrap();
 
         let mut off = 0usize;
-        let mut cout = vec![0u8; 256 * 2 * wl];
-        let mut rout = vec![0u8; 256 * 2 * wl];
+        let mut cout = vec![0u8; 256 * nch * wl];
+        let mut rout = vec![0u8; 256 * nch * wl];
         let mut frame = 0;
 
         while off + 5 < stream.len() {

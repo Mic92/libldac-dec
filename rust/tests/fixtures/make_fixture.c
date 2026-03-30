@@ -9,26 +9,27 @@
 #include <string.h>
 #include "ldacBT.h"
 
-static void gen(const char* path, int eqmid, int sr) {
+static void gen(const char* path, int eqmid, int sr, int cm, int nch) {
     HANDLE_LDAC_BT h = ldacBT_get_handle();
     int r = ldacBT_init_handle_encode(
-        h, 679, eqmid, LDACBT_CHANNEL_MODE_STEREO,
+        h, 679, eqmid, cm,
         LDACBT_SMPL_FMT_S16, sr);
     if (r) { fprintf(stderr, "init failed: %x\n",
                      ldacBT_get_error_code(h)); exit(1); }
 
     FILE* out = fopen(path, "wb");
-    short pcm[128 * 2];
+    int lsu = (sr > 48000) ? 256 : 128;
+    short pcm[256 * 2];
     unsigned char stream[1024];
     int used, wrote, nfrm;
     double phase = 0, freq = 440.0;
 
     /* ~1 second of sine sweep */
     for (int frm = 0; frm < 400; ++frm) {
-        for (int i = 0; i < 128; ++i) {
+        for (int i = 0; i < lsu; ++i) {
             double s = sin(phase) * 16000.0;
             phase += 2.0 * M_PI * freq / (double)sr;
-            pcm[2*i] = pcm[2*i+1] = (short)s;
+            for (int c = 0; c < nch; ++c) pcm[nch*i+c] = (short)s;
         }
         freq *= 1.005;
         r = ldacBT_encode(h, pcm, &used, stream, &wrote, &nfrm);
@@ -44,9 +45,11 @@ static void gen(const char* path, int eqmid, int sr) {
 }
 
 int main(void) {
-    gen("sine48k_hq.ldac", LDACBT_EQMID_HQ, 48000);
-    gen("sine48k_sq.ldac", LDACBT_EQMID_SQ, 48000);
-    gen("sine48k_mq.ldac", LDACBT_EQMID_MQ, 48000);
-    gen("sine96k_hq.ldac", LDACBT_EQMID_HQ, 96000);
+    gen("sine48k_hq.ldac",      LDACBT_EQMID_HQ, 48000, LDACBT_CHANNEL_MODE_STEREO,       2);
+    gen("sine48k_sq.ldac",      LDACBT_EQMID_SQ, 48000, LDACBT_CHANNEL_MODE_STEREO,       2);
+    gen("sine48k_mq.ldac",      LDACBT_EQMID_MQ, 48000, LDACBT_CHANNEL_MODE_STEREO,       2);
+    gen("sine96k_hq.ldac",      LDACBT_EQMID_HQ, 96000, LDACBT_CHANNEL_MODE_STEREO,       2);
+    gen("sine48k_mono.ldac",    LDACBT_EQMID_HQ, 48000, LDACBT_CHANNEL_MODE_MONO,         1);
+    gen("sine48k_dualch.ldac",  LDACBT_EQMID_HQ, 48000, LDACBT_CHANNEL_MODE_DUAL_CHANNEL, 2);
     return 0;
 }
