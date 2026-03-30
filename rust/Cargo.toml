@@ -1,0 +1,20 @@
+[package]
+name = "ldac-dec"
+version = "0.1.0"
+edition = "2021"
+description = "Memory-safe Rust implementation of LDAC audio decoder"
+license = "Apache-2.0"
+
+[lib]
+name = "ldac_dec"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ldac-dec-test"
+path = "src/bin/ldac_dec_test.rs"
+
+[dependencies]
+
+[profile.release]
+lto = true
+codegen-units = 1
