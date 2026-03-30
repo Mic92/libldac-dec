@@ -14,7 +14,26 @@ use std::path::Path;
 use ldac_dec::{ChannelMode, LdacDecoder, SampleFormat};
 
 #[test]
-fn diff_against_c() {
+fn diff_against_c_s16() {
+    diff_against_c_fmt(SampleFormat::S16, 2, 2);
+}
+
+#[test]
+fn diff_against_c_s24() {
+    diff_against_c_fmt(SampleFormat::S24, 3, 3);
+}
+
+#[test]
+fn diff_against_c_s32() {
+    diff_against_c_fmt(SampleFormat::S32, 4, 4);
+}
+
+#[test]
+fn diff_against_c_f32() {
+    diff_against_c_fmt(SampleFormat::F32, 5, 4);
+}
+
+fn diff_against_c_fmt(rfmt: SampleFormat, cfmt: c_int, wl: usize) {
     let fixtures: Vec<_> = std::fs::read_dir("tests/fixtures")
         .into_iter()
         .flatten()
@@ -52,15 +71,13 @@ fn diff_against_c() {
         let mut rdec = LdacDecoder::new(ChannelMode::Stereo, sr).unwrap();
 
         let mut off = 0usize;
-        let mut cout = vec![0u8; 256 * 2 * 2];
-        let mut rout = vec![0u8; 256 * 2 * 2];
+        let mut cout = vec![0u8; 256 * 2 * wl];
+        let mut rout = vec![0u8; 256 * 2 * wl];
         let mut frame = 0;
 
         while off + 5 < stream.len() {
-            let (cused, cwrote) = cdec.decode(h, &stream[off..], &mut cout);
-            let (rused, rwrote) = rdec
-                .decode(&stream[off..], SampleFormat::S16, &mut rout)
-                .unwrap();
+            let (cused, cwrote) = cdec.decode(h, &stream[off..], &mut cout, cfmt);
+            let (rused, rwrote) = rdec.decode(&stream[off..], rfmt, &mut rout).unwrap();
 
             assert_eq!(cused, rused, "frame {frame}: used bytes mismatch");
             assert_eq!(cwrote, rwrote, "frame {frame}: wrote bytes mismatch");
@@ -145,14 +162,14 @@ impl CDecoder {
     fn init(&self, h: *mut c_void, cm: c_int, sf: c_int) -> c_int {
         (self.init_decode)(h, cm, sf, 0, 0, 0)
     }
-    fn decode(&self, h: *mut c_void, bs: &[u8], out: &mut [u8]) -> (usize, usize) {
+    fn decode(&self, h: *mut c_void, bs: &[u8], out: &mut [u8], fmt: c_int) -> (usize, usize) {
         let mut used = 0;
         let mut wrote = 0;
         (self.decode)(
             h,
             bs.as_ptr(),
             out.as_mut_ptr(),
-            2, /* S16 */
+            fmt,
             bs.len() as c_int,
             &mut used,
             &mut wrote,

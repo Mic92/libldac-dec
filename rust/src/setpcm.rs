@@ -50,8 +50,11 @@ pub fn set_output_pcm(
             }
             SampleFormat::S32 => {
                 for i in 0..nsmpl {
-                    let v = (time[i] as f64 * 65536.0 + 0.5).floor() as i64;
-                    let v = v.clamp(-0x8000_0000, 0x7FFF_FFFF) as i32;
+                    // Bit-exact with C: the multiply and +0.5 MUST happen
+                    // in f32 so we hit the same rounding as the reference
+                    // (`f * 65536.0f + 0.5f` then promoted for floor()).
+                    let v = (time[i] * 65536.0 + 0.5) as f64;
+                    let v = (v.floor() as i64).clamp(-0x8000_0000, 0x7FFF_FFFF) as i32;
                     out[i * 4..i * 4 + 4].copy_from_slice(&v.to_le_bytes());
                 }
             }
