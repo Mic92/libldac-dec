@@ -72,7 +72,9 @@ fn find_rust_cdylib() -> Option<PathBuf> {
 
 #[test]
 fn abi_compat() {
-    let c_path = Path::new("../../build/libldacBT_dec.so");
+    let c_path = std::env::var("LDAC_C_REFERENCE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| Path::new("../../build/libldacBT_dec.so").into());
     if !c_path.exists() {
         eprintln!("abi_compat: C library not built, skipping");
         return;
@@ -81,7 +83,7 @@ fn abi_compat() {
         panic!("rust cdylib not found; run `cargo build -p ldac-dec-capi` first");
     };
 
-    let clib = Lib::load(c_path);
+    let clib = Lib::load(&c_path);
     let rlib = Lib::load(&rust_path);
 
     assert_eq!(

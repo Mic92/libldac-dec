@@ -93,6 +93,32 @@ part of the public `ldacBT.h` contract.
 
 ## Building & testing
 
+### With Nix
+
+```bash
+nix build .#ldac-dec
+# → result/lib/libldacBT_dec.{so,a}
+# → result/include/ldac/ldacBT.h
+# → result/bin/ldac-dec-test
+```
+
+The flake runs the full test suite in the sandbox, including the C-ABI
+diff test (against a nix-built C reference) and valgrind.  The
+`devShell` builds the C reference on entry so `cargo test` picks it up:
+
+```bash
+nix develop
+cargo test --workspace
+```
+
+Override the C-reference location via `LDAC_C_REFERENCE`:
+
+```bash
+LDAC_C_REFERENCE=/path/to/libldacBT_dec.so cargo test
+```
+
+### Without Nix
+
 ```bash
 cargo build --release --workspace
 cargo test  --workspace

@@ -46,12 +46,14 @@ fn diff_against_c_fmt(rfmt: SampleFormat, cfmt: c_int, wl: usize) {
         return;
     }
 
-    let lib_path = Path::new("../build/libldacBT_dec.so");
+    let lib_path = std::env::var("LDAC_C_REFERENCE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| Path::new("../build/libldacBT_dec.so").into());
     if !lib_path.exists() {
         eprintln!("diff_against_c: C library not built, skipping");
         return;
     }
-    let cdec = CDecoder::load(lib_path);
+    let cdec = CDecoder::load(&lib_path);
 
     for fx in fixtures {
         eprintln!("fixture: {}", fx.display());
